@@ -1,10 +1,11 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun, Sparkles, Star } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useAppState, applyDarkMode } from "@/store/appState";
 import { useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { getProfile } from "../lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { playClick } from "@/lib/sounds";
 
 const tabs = [
   { to: "/", label: "Home" },
@@ -43,6 +44,7 @@ export default function TopNav() {
               <NavLink
                 key={t.to}
                 to={t.to}
+                onClick={() => playClick()}
                 className={`px-4 py-1.5 rounded-full font-bold text-sm transition-all ${
                   active
                     ? "bg-brand-yellow border-2 border-border shadow-[3px_3px_0_0_hsl(var(--border))]"
@@ -68,7 +70,7 @@ export default function TopNav() {
             </div>
           )}
           <button
-            onClick={() => update((st) => ({ prefs: { ...(st?.prefs || {}), darkMode: !(st?.prefs?.darkMode) } as any }))}
+            onClick={() => { playClick(); update((st) => ({ prefs: { ...(st?.prefs || {}), darkMode: !(st?.prefs?.darkMode) } as any })); }}
             className="brutal-sm w-10 h-10 grid place-items-center bg-card brutal-press"
             aria-label="Toggle dark mode"
           >
@@ -94,6 +96,7 @@ export default function TopNav() {
             <NavLink
               key={t.to}
               to={t.to}
+              onClick={() => playClick()}
               className={`px-4 py-1.5 rounded-full font-bold text-sm whitespace-nowrap ${
                 active ? "bg-brand-yellow border-2 border-border shadow-[3px_3px_0_0_hsl(var(--border))]" : "bg-card border-2 border-border"
               }`}

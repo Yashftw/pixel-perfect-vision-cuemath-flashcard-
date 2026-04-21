@@ -102,7 +102,8 @@ export async function deleteDeck(deckId: string) {
 export async function uploadPDFAndGenerateCards(
     file: File,
     subject: string,
-    onStatus: (msg: string) => void
+    onStatus: (msg: string) => void,
+    cardCount: number = 15
 ) {
     const { data: { session } } = await supabase.auth.getSession()
     const userId = session?.user?.id || "00000000-0000-0000-0000-000000000000"
@@ -110,9 +111,6 @@ export async function uploadPDFAndGenerateCards(
     // 1. Convert PDF to base64
     onStatus('Reading PDF...')
     const base64 = await fileToBase64(file)
-
-    // 2. Upload PDF to storage (Bypassed so we don't need 'pdfs' bucket)
-    // We send base64 directly to the edge function!
 
     // 3. Create deck record
     onStatus('Creating deck...')
@@ -137,7 +135,8 @@ export async function uploadPDFAndGenerateCards(
                 deckId: deck.id,
                 pdfBase64: base64,
                 subject,
-                userId: userId
+                userId: userId,
+                cardCount
             }
         })
 

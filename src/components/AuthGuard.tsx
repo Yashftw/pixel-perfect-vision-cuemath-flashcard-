@@ -1,18 +1,12 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate } from 'react-router-dom'; // Changed this import
 import { useAuth } from '../hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { user, loading } = useAuth();
-    const navigate = useNavigate();
 
-    useEffect(() => {
-        if (!loading && !user) {
-            navigate('/login', { replace: true });
-        }
-    }, [user, loading, navigate]);
-
+    // 1. Handle loading state first
     if (loading) {
         return (
             <div className="min-h-screen bg-brand-cream flex flex-col items-center justify-center p-6">
@@ -24,9 +18,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
+    // 2. Declarative redirect if no user
     if (!user) {
-        return null;
+        // This instantly redirects without needing a useEffect or returning null
+        return <Navigate to="/login" replace />;
     }
 
+    // 3. User is authenticated, render the protected content
     return <>{children}</>;
 }

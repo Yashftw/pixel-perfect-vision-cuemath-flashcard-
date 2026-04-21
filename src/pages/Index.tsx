@@ -26,6 +26,7 @@ export default function Index() {
   const fileRef = useRef<HTMLInputElement>(null);
   
   const [mode, setMode] = useState<"word" | "easy">("easy");
+  const [cardCount, setCardCount] = useState(30);
   const [step, setStep] = useState(-1);
   const [dragOver, setDragOver] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
@@ -62,7 +63,7 @@ export default function Index() {
       }, 3000);
 
       try {
-        const result = await uploadPDFAndGenerateCards(file, file.name.replace('.pdf', ''), setUploadStatus);
+        const result = await uploadPDFAndGenerateCards(file, file.name.replace('.pdf', ''), setUploadStatus, cardCount);
         clearInterval(tick);
         setStep(STEPS.length);
         return result;
@@ -128,6 +129,23 @@ export default function Index() {
             </div>
           }
         >
+          {/* Card count picker */}
+          {!uploadMutation.isPending && !uploadMutation.isError && (
+            <div className="brutal-sm bg-muted px-4 py-3 mb-4 flex items-center gap-4 flex-wrap">
+              <span className="text-xs font-bold text-muted-foreground uppercase">How many cards?</span>
+              <div className="flex gap-2 flex-wrap">
+                {[5, 10, 15, 20, 25, 30].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setCardCount(n)}
+                    className={`brutal-sm brutal-press px-3 py-1 text-xs font-bold ${cardCount === n ? "bg-brand-orange" : "bg-card"}`}
+                  >{n}</button>
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground ml-auto">{cardCount} cards will be generated</span>
+            </div>
+          )}
+
           {uploadMutation.isError ? (
             <div className="brutal-sm bg-brand-red/10 p-8 text-center">
               <div className="brutal-sm bg-brand-red w-16 h-16 grid place-items-center mx-auto mb-3 text-white">

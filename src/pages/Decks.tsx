@@ -1,12 +1,14 @@
 import Layout from "@/components/Layout";
 import { PageHeader, SectionCard } from "@/components/Brutal";
-import { BookMarked, Layers, Wrench, Download, Search, Zap, BookOpen, Sigma, Info, Plus, Trash2 } from "lucide-react";
+import { BookMarked, Layers, Wrench, Download, Search, Zap, BookOpen, Sigma, Info, Trash2, FileText, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useAppState } from "@/store/appState";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDecks, deleteDeck, createDeck } from "@/lib/api";
+import { getDecks, deleteDeck, getDeckCards } from "@/lib/api";
+import jsPDF from "jspdf";
+import { playClick } from "@/lib/sounds";
 
 const colorMap: Record<string, string> = {
   green: "bg-brand-green", yellow: "bg-brand-yellow", blue: "bg-brand-blue",
@@ -20,18 +22,152 @@ export default function Decks() {
   const [q, setQ] = useState("");
   const [fixIt, setFixIt] = useState(false);
   const [formula, setFormula] = useState("E = mc^2");
+  const [pdfDeckId, setPdfDeckId] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [showPdfPicker, setShowPdfPicker] = useState(false);
 
   const { data: decks = [], isLoading } = useQuery({ queryKey: ["decks"], queryFn: getDecks });
 
   const filtered = decks.filter((d: any) => d.title?.toLowerCase().includes(q.toLowerCase()));
 
-  const exportDecks = () => {
-    const blob = new Blob([JSON.stringify(decks, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "pixel-perfect-decks.json"; a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Deck collection exported!");
+  const exportPdf = async () => {
+    const targetId = pdfDeckId || (decks[0] as any)?.id;
+    if (!targetId) { toast.error("No deck selected."); return; }
+    const deck = (decks as any[]).find((d) => d.id === targetId);
+    setPdfLoading(true);
+    try {
+      const cards = await getDeckCards(targetId);
+      if (!cards || cards.length === 0) { toast.error("This deck has no cards yet."); return; }
+
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const margin = 48;
+      const contentW = W - margin * 2;
+
+      // ── Cover page ──────────────────────────────────────────────────────────
+      doc.setFillColor(255, 200, 100); // brand yellow
+      doc.rect(0, 0, W, H, "F");
+      // thick border
+      doc.setDrawColor(30, 30, 40);
+      doc.setLineWidth(4);
+      doc.rect(12, 12, W - 24, H - 24);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(36);
+      doc.setTextColor(30, 30, 40);
+      doc.text(deck?.title || "Study Deck", W / 2, H / 2 - 60, { align: "center", maxWidth: contentW });
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(80, 80, 90);
+      doc.text(deck?.subject || "General Study", W / 2, H / 2 - 20, { align: "center" });
+
+      doc.setFontSize(11);
+      doc.text(`${cards.length} cards  ·  Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`, W / 2, H / 2 + 14, { align: "center" });
+
+      doc.setFontSize(10);
+      doc.setTextColor(120, 120, 130);
+      doc.text("BrainBlox — Take It With Me", W / 2, H - 40, { align: "center" });
+
+      // ── Q&A pages ───────────────────────────────────────────────────────────
+      const accentColors: [number, number, number][] = [
+        [167, 230, 180], // green
+        [255, 200, 100], // yellow
+        [150, 200, 255], // blue
+        [255, 160, 100], // orange
+        [200, 170, 255], // purple
+      ];
+
+      cards.forEach((card: any, idx: number) => {
+        doc.addPage();
+        const accent = accentColors[idx % accentColors.length];
+
+        // card number pill
+        doc.setFillColor(...accent);
+        doc.roundedRect(margin, 36, 60, 22, 6, 6, "F");
+        doc.setDrawColor(30, 30, 40);
+        doc.setLineWidth(1.5);
+        doc.roundedRect(margin, 36, 60, 22, 6, 6, "S");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 40);
+        doc.text(`#${idx + 1}`, margin + 30, 51, { align: "center" });
+
+        // deck name top-right
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(150, 150, 160);
+        doc.text(deck?.title || "", W - margin, 51, { align: "right" });
+
+        // divider
+        doc.setDrawColor(30, 30, 40);
+        doc.setLineWidth(1.5);
+        doc.line(margin, 70, W - margin, 70);
+
+        // QUESTION block
+        doc.setFillColor(248, 248, 250);
+        doc.setDrawColor(30, 30, 40);
+        doc.setLineWidth(2);
+        doc.roundedRect(margin, 84, contentW, 28, 4, 4, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 110);
+        doc.text("QUESTION", margin + 10, 102);
+
+        const qLines = doc.splitTextToSize(card.question || "", contentW - 20);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(13);
+        doc.setTextColor(30, 30, 40);
+        doc.text(qLines, margin + 10, 132);
+
+        const qBlockH = Math.max(60, qLines.length * 18 + 20);
+
+        // ANSWER block
+        const answerY = 84 + qBlockH + 20;
+        doc.setFillColor(...accent);
+        doc.setDrawColor(30, 30, 40);
+        doc.setLineWidth(2);
+        doc.roundedRect(margin, answerY, contentW, 28, 4, 4, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(30, 30, 40);
+        doc.text("ANSWER", margin + 10, answerY + 18);
+
+        const aLines = doc.splitTextToSize(card.answer || "", contentW - 20);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(13);
+        doc.setTextColor(30, 30, 40);
+        doc.text(aLines, margin + 10, answerY + 46);
+
+        // hint (if present)
+        if (card.hint) {
+          const hintY = answerY + 46 + aLines.length * 18 + 16;
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(10);
+          doc.setTextColor(130, 130, 145);
+          const hLines = doc.splitTextToSize(`💡 ${card.hint}`, contentW - 20);
+          doc.text(hLines, margin + 10, hintY);
+        }
+
+        // page footer
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(180, 180, 190);
+        doc.text(`${idx + 1} / ${cards.length}`, W / 2, H - 28, { align: "center" });
+        doc.setDrawColor(200, 200, 210);
+        doc.setLineWidth(0.5);
+        doc.line(margin, H - 38, W - margin, H - 38);
+      });
+
+      doc.save(`${deck?.title || "deck"}.pdf`);
+      toast.success(`PDF saved — ${cards.length} cards exported!`);
+      setShowPdfPicker(false);
+    } catch (e: any) {
+      toast.error("PDF export failed: " + e.message);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const deleteMutation = useMutation({
@@ -47,6 +183,7 @@ export default function Decks() {
   };
 
   const openDeck = (id: string) => {
+    playClick();
     update(() => ({ currentDeckId: id, currentCardIndex: 0 }));
     navigate(`/study/${id}`);
   };
@@ -74,12 +211,40 @@ export default function Decks() {
           actions={
             <>
               <button
-                onClick={() => { setFixIt((v) => !v); toast(fixIt ? "Fix-it mode off" : "Fix-it mode on — tap a deck to delete"); }}
+                onClick={() => { setFixIt((v) => !v); playClick(); toast(fixIt ? "Fix-it mode off" : "Fix-it mode on — tap a deck to delete"); }}
                 className={`brutal-sm brutal-press px-3 py-1.5 font-bold text-xs flex items-center gap-1.5 ${fixIt ? "bg-brand-red" : "bg-brand-yellow"}`}
               ><Wrench className="w-3.5 h-3.5" /> FIX-IT MODE</button>
-              <button onClick={exportDecks} className="brutal-sm brutal-press bg-brand-blue px-3 py-1.5 font-bold text-xs flex items-center gap-1.5">
-                <Download className="w-3.5 h-3.5" /> TAKE IT WITH ME
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowPdfPicker((v) => !v)}
+                  className="brutal-sm brutal-press bg-brand-blue px-3 py-1.5 font-bold text-xs flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5" /> TAKE IT WITH ME
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showPdfPicker && (
+                  <div className="absolute right-0 top-full mt-1 z-50 brutal-sm bg-card min-w-[200px] p-2 flex flex-col gap-1">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase px-2 pb-1">Pick a deck</div>
+                    {(decks as any[]).map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => setPdfDeckId(d.id)}
+                        className={`text-left px-3 py-2 text-sm font-bold brutal-sm brutal-press ${pdfDeckId === d.id ? "bg-brand-blue" : "bg-muted hover:bg-brand-blue/30"}`}
+                      >
+                        {d.title}
+                      </button>
+                    ))}
+                    <button
+                      onClick={exportPdf}
+                      disabled={pdfLoading || !pdfDeckId}
+                      className="mt-1 brutal-sm brutal-press bg-brand-green px-3 py-2 font-bold text-xs flex items-center justify-center gap-1.5 disabled:opacity-60"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      {pdfLoading ? "Generating..." : "Download PDF"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           }
         >

@@ -5,12 +5,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function generateCards(pdfBase64: string, subject: string): Promise<any[]> {
+async function generateCards(pdfBase64: string, subject: string, cardCount: number, retries = 3): Promise<any[]> {
     const prompt = `You are an expert teacher creating flashcards for students aged 10-16.
 
 Analyze this PDF and generate flashcards. Return ONLY a valid JSON array, no markdown, no extra text.
@@ -20,7 +21,7 @@ Rules:
 - Write ALL math using LaTeX: inline with $...$ and block with $$...$$
 - Each card must be fully self-contained
 - Vary card types: definition, formula, solve-this, explain-why, compare-contrast
-- Generate 10-20 cards total
+- Generate EXACTLY ${cardCount} cards — no more, no fewer
 - Keep answers under 80 words
 - Language must be simple enough for a 12-year-old
 
@@ -37,36 +38,47 @@ Return this exact structure:
 
 Subject: ${subject}`;
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { inline_data: { mime_type: "application/pdf", data: pdfBase64 } },
-                        { text: prompt }
-                    ]
-                }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 4000 }
-            })
+    for (let i = 0; i < retries; i++) {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { inline_data: { mime_type: "application/pdf", data: pdfBase64 } },
+                            { text: prompt }
+                        ]
+                    }],
+                    generationConfig: { temperature: 0.3, maxOutputTokens: 4000 }
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const text = data.candidates[0].content.parts[0].text;
+            const clean = text.replace(/```json|```/g, "").trim();
+            const parsed = JSON.parse(clean);
+            // Trim or pad to exact count if AI over/under-generates
+            return parsed.slice(0, cardCount);
         }
-    );
 
-    const data = await response.json();
-
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.error("Gemini response:", JSON.stringify(data));
-        throw new Error("Gemini returned no content");
+        if (data.error?.code === 503 && i < retries - 1) {
+            console.log(`Gemini overloaded, retrying in ${(i + 1) * 2}s...`);
+            await new Promise(r => setTimeout(r, (i + 1) * 2000));
+        } else {
+            console.error("Gemini response:", JSON.stringify(data));
+            throw new Error("Gemini returned no content");
+        }
     }
 
-    const text = data.candidates[0].content.parts[0].text;
-    const clean = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
+    throw new Error("Gemini failed after all retries");
 }
 
-async function correctCards(cards: any[], subject: string): Promise<any[]> {
+async function correctCards(cards: any[], subject: string, retries = 3): Promise<any[]> {
     const prompt = `You are a strict educational quality reviewer.
 
 Review and fix these flashcards. Return ONLY the corrected JSON array, no markdown, no extra text.
@@ -85,32 +97,41 @@ ${JSON.stringify(cards, null, 2)}
 
 Subject: ${subject}`;
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${Deno.env.get("GEMINI_API_KEY")}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 4000 }
-            })
+    for (let i = 0; i < retries; i++) {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 4000 }
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const text = data.candidates[0].content.parts[0].text;
+            const clean = text.replace(/```json|```/g, "").trim();
+            try {
+                return JSON.parse(clean);
+            } catch {
+                return cards;
+            }
         }
-    );
 
-    const data = await response.json();
-
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.error("Gemini correction response:", JSON.stringify(data));
-        return cards; // fall back to uncorrected cards
+        if (data.error?.code === 503 && i < retries - 1) {
+            console.log(`Gemini overloaded on correction, retrying in ${(i + 1) * 2}s...`);
+            await new Promise(r => setTimeout(r, (i + 1) * 2000));
+        } else {
+            console.error("Gemini correction response:", JSON.stringify(data));
+            return cards;
+        }
     }
 
-    const text = data.candidates[0].content.parts[0].text;
-    const clean = text.replace(/```json|```/g, "").trim();
-    try {
-        return JSON.parse(clean);
-    } catch {
-        return cards; // fall back to uncorrected cards
-    }
+    return cards;
 }
 
 function orderCardsPedagogically(cards: any[]): any[] {
@@ -132,7 +153,7 @@ serve(async (req) => {
     }
 
     try {
-        const { deckId, pdfBase64, subject, userId } = await req.json();
+        const { deckId, pdfBase64, subject, userId, cardCount = 15 } = await req.json();
 
         if (!deckId || !pdfBase64 || !userId) {
             throw new Error("Missing required fields: deckId, pdfBase64, userId");
@@ -140,8 +161,8 @@ serve(async (req) => {
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-        console.log("Generating cards...");
-        const rawCards = await generateCards(pdfBase64, subject || "General");
+        console.log(`Generating ${cardCount} cards...`);
+        const rawCards = await generateCards(pdfBase64, subject || "General", cardCount);
 
         console.log(`Generated ${rawCards.length} cards. Correcting...`);
         const correctedCards = await correctCards(rawCards, subject || "General");
