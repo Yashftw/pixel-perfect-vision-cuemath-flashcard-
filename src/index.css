@@ -1,0 +1,228 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* BrainBlox neobrutalism design system. All colors HSL. */
+
+@layer base {
+  :root {
+    --background: 42 50% 95%;
+    --foreground: 220 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 12%;
+
+    --primary: 18 90% 65%;            /* orange */
+    --primary-foreground: 220 25% 12%;
+
+    --secondary: 50 100% 65%;         /* yellow */
+    --secondary-foreground: 220 25% 12%;
+
+    --muted: 42 30% 90%;
+    --muted-foreground: 220 15% 35%;
+
+    --accent: 210 85% 75%;            /* blue */
+    --accent-foreground: 220 25% 12%;
+
+    --destructive: 0 80% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 25% 12%;
+    --input: 220 25% 12%;
+    --ring: 18 90% 65%;
+
+    --radius: 0.85rem;
+
+    /* Brand colors */
+    --brand-orange: 18 90% 65%;
+    --brand-yellow: 50 100% 65%;
+    --brand-green: 145 55% 65%;
+    --brand-blue: 210 85% 75%;
+    --brand-purple: 265 70% 78%;
+    --brand-red: 0 80% 70%;
+    --brand-cream: 42 50% 95%;
+
+    --shadow-brutal: 6px 6px 0 0 hsl(var(--border));
+    --shadow-brutal-sm: 3px 3px 0 0 hsl(var(--border));
+    --shadow-brutal-lg: 8px 8px 0 0 hsl(var(--border));
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 230 22% 9%;
+    --foreground: 40 50% 96%;
+    --card: 230 20% 14%;
+    --card-foreground: 40 50% 96%;
+    --popover: 230 20% 14%;
+    --popover-foreground: 40 50% 96%;
+    --primary: 18 85% 60%;
+    --primary-foreground: 230 22% 9%;
+    --secondary: 48 90% 58%;
+    --secondary-foreground: 230 22% 9%;
+    --muted: 230 18% 20%;
+    --muted-foreground: 40 25% 78%;
+    --accent: 210 70% 60%;
+    --accent-foreground: 230 22% 9%;
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 40% 88%;
+    --input: 40 40% 88%;
+    --ring: 18 85% 60%;
+
+    /* Slightly desaturated brand colors for dark mode */
+    --brand-orange: 18 75% 58%;
+    --brand-yellow: 48 80% 58%;
+    --brand-green: 145 45% 50%;
+    --brand-blue: 210 60% 58%;
+    --brand-purple: 265 50% 62%;
+    --brand-red: 0 65% 60%;
+    --brand-cream: 230 20% 14%;
+
+    --shadow-brutal: 6px 6px 0 0 hsl(var(--border));
+    --shadow-brutal-sm: 3px 3px 0 0 hsl(var(--border));
+    --shadow-brutal-lg: 8px 8px 0 0 hsl(var(--border));
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+    font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fredoka', 'Nunito', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .brutal {
+    @apply border-2 border-border rounded-2xl;
+    box-shadow: var(--shadow-brutal);
+  }
+  .brutal-sm {
+    @apply border-2 border-border rounded-xl;
+    box-shadow: var(--shadow-brutal-sm);
+  }
+  .brutal-lg {
+    @apply border-2 border-border rounded-2xl;
+    box-shadow: var(--shadow-brutal-lg);
+  }
+  .brutal-press {
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .brutal-press:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0 0 hsl(var(--border));
+  }
+  .brutal-press:active {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0 0 hsl(var(--border));
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-border text-sm font-bold;
+    box-shadow: var(--shadow-brutal-sm);
+  }
+}
+
+@layer utilities {
+  /* Brand colors always render text dark — they are warm/light backgrounds */
+  .bg-brand-orange { background-color: hsl(var(--brand-orange)); color: hsl(220 25% 12%); }
+  .bg-brand-yellow { background-color: hsl(var(--brand-yellow)); color: hsl(220 25% 12%); }
+  .bg-brand-green  { background-color: hsl(var(--brand-green));  color: hsl(220 25% 12%); }
+  .bg-brand-blue   { background-color: hsl(var(--brand-blue));   color: hsl(220 25% 12%); }
+  .bg-brand-purple { background-color: hsl(var(--brand-purple)); color: hsl(220 25% 12%); }
+  .bg-brand-red    { background-color: hsl(var(--brand-red));    color: hsl(220 25% 12%); }
+  .bg-brand-cream  { background-color: hsl(var(--brand-cream)); }
+  .text-brand-orange { color: hsl(var(--brand-orange)); }
+
+  /* Muted-foreground inside brand panels should still be dark-on-light for contrast */
+  .bg-brand-orange .text-muted-foreground,
+  .bg-brand-yellow .text-muted-foreground,
+  .bg-brand-green  .text-muted-foreground,
+  .bg-brand-blue   .text-muted-foreground,
+  .bg-brand-purple .text-muted-foreground,
+  .bg-brand-red    .text-muted-foreground { color: hsl(220 20% 28%); }
+
+  /* Nested .bg-card (and .bg-muted) blocks inside brand panels must restore
+     their own foreground color, otherwise they inherit the dark text the
+     brand panel forced — which becomes invisible in dark mode where card is dark. */
+  .bg-brand-orange .bg-card,
+  .bg-brand-yellow .bg-card,
+  .bg-brand-green  .bg-card,
+  .bg-brand-blue   .bg-card,
+  .bg-brand-purple .bg-card,
+  .bg-brand-red    .bg-card { color: hsl(var(--card-foreground)); }
+
+  .bg-brand-orange .bg-muted,
+  .bg-brand-yellow .bg-muted,
+  .bg-brand-green  .bg-muted,
+  .bg-brand-blue   .bg-muted,
+  .bg-brand-purple .bg-muted,
+  .bg-brand-red    .bg-muted { color: hsl(var(--foreground)); }
+
+  /* And the muted-foreground override above shouldn't leak into nested cards */
+  .bg-brand-orange .bg-card .text-muted-foreground,
+  .bg-brand-yellow .bg-card .text-muted-foreground,
+  .bg-brand-green  .bg-card .text-muted-foreground,
+  .bg-brand-blue   .bg-card .text-muted-foreground,
+  .bg-brand-purple .bg-card .text-muted-foreground,
+  .bg-brand-red    .bg-card .text-muted-foreground,
+  .bg-brand-orange .bg-muted .text-muted-foreground,
+  .bg-brand-yellow .bg-muted .text-muted-foreground,
+  .bg-brand-green  .bg-muted .text-muted-foreground,
+  .bg-brand-blue   .bg-muted .text-muted-foreground,
+  .bg-brand-purple .bg-muted .text-muted-foreground,
+  .bg-brand-red    .bg-muted .text-muted-foreground { color: hsl(var(--muted-foreground)); }
+
+  @keyframes float-soft {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+  .animate-float { animation: float-soft 3s ease-in-out infinite; }
+
+  @keyframes stamp {
+    0%   { transform: scale(2.4) rotate(-18deg); opacity: 0; }
+    60%  { transform: scale(0.9) rotate(-10deg); opacity: 1; }
+    80%  { transform: scale(1.08) rotate(-12deg); }
+    100% { transform: scale(1) rotate(-10deg); opacity: 1; }
+  }
+  .animate-stamp { animation: stamp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  
+  /* 3D Core Utilities */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+}
