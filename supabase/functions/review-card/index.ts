@@ -3,8 +3,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { reviewCard } from "../_shared/fsrs.ts";
 
-const SUPABASE_URL = "https://fhfvgdeokmlcxweqxgig.supabase.co";
-const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoZnZnZGVva21sY3h3ZXF4Z2lnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjY4NjEzMCwiZXhwIjoyMDkyMjYyMTMwfQ.FVq_40d_u0HQEo8ZmR4FftLmMDCmlnWUXI4KTcbalaY";
+// ✅ Use environment variables instead
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,9 +37,9 @@ serve(async (req) => {
       .eq("card_id", cardId)
       .eq("user_id", userId)
       .maybeSingle();
-      
+
     let currentState: any;
-    
+
     if (fetchError) {
       throw fetchError;
     } else if (!stateRow) {
