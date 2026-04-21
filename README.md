@@ -1,5 +1,7 @@
 # Pixel Perfect Vision
 
+Deployed link : https://pixel-perfect-vision-cuemath-flashc-opal.vercel.app/
+
 **Turn pages into play.**
 
 A spaced-repetition flashcard application that converts any PDF into a smart, practice-ready deck of cards. Upload a chapter, get cards written like a great teacher made them, then let the scheduling engine decide what you need to see next — and when.
