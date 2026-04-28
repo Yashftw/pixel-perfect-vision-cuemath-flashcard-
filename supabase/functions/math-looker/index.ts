@@ -44,6 +44,10 @@ User Query: ${query}`;
 
         const data = await response.json();
 
+        if (data.error) {
+            throw new Error(data.error.message || JSON.stringify(data.error));
+        }
+
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
             let formula = data.candidates[0].content.parts[0].text.trim();
             formula = formula.replace(/^\$+|\$+$/g, ''); // strip any accidentally included dollar signs
@@ -53,7 +57,7 @@ User Query: ${query}`;
             );
         }
 
-        throw new Error("Failed to get formula from AI");
+        throw new Error(`AI generated no text. Response: ${JSON.stringify(data)}`);
 
     } catch (err: any) {
         console.error("Error:", err);
