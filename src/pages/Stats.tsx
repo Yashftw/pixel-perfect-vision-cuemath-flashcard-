@@ -6,7 +6,7 @@ import { getDecks, getDeckStats, getProfile } from "@/lib/api";
 import { useMemo } from "react";
 
 // ─── FSRS Stats Engine ────────────────────────────────────────────────────────
-// A card is "Locked In" (mastered) when its stability interval > 21 days.
+// A card is "Locked In" (mastered) when its stability interval > 3 days.
 // Memory Mastery = % of total cards that are Locked In.
 // Refresh Meter (Health) = % of cards NOT currently overdue (due <= 0).
 
@@ -43,8 +43,8 @@ function computeFsrsStats(deck: any, serverStats: { mastered: number; total: num
   let overdue = 0;
 
   for (const card of cards) {
-    // Locked In: stability > 21 days
-    if ((card.stability ?? 0) > 21) mastered++;
+    // Locked In: stability > 3 days
+    if ((card.stability ?? 0) > 3) mastered++;
 
     // Overdue: due date exists and is in the past
     if (card.due) {
@@ -321,7 +321,7 @@ export default function Stats() {
                 })}
               </div>
 
-              <p className="text-[10px] text-muted-foreground opacity-70">⚙️ Mastered = stability &gt; 21 days (FSRS)</p>
+              <p className="text-[10px] text-muted-foreground opacity-70">⚙️ Mastered = stability &gt; 3 days (FSRS)</p>
             </div>
           ) : (
             <div className="text-muted-foreground h-full grid place-items-center min-h-[120px] text-sm">
@@ -339,7 +339,7 @@ export default function Stats() {
               <span className="text-2xl text-muted-foreground">/{totalCards}</span>
             </div>
             <div className="text-xs mt-1 flex items-center gap-1 text-muted-foreground">
-              <TrendingUp className="w-3 h-3" /> 21+ day stability
+              <TrendingUp className="w-3 h-3" /> 3+ day stability
             </div>
             {totalCards > 0 && (
               <div className="mt-3 brutal-sm bg-muted h-3 overflow-hidden">

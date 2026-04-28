@@ -157,6 +157,38 @@ export async function uploadPDFAndGenerateCards(
     }
 }
 
+export async function generateMoreCards(
+    deckId: string,
+    subject: string,
+    onStatus: (msg: string) => void
+) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const userId = session?.user?.id || "00000000-0000-0000-0000-000000000000"
+
+    onStatus('Fetching existing cards...')
+    const { data: cards } = await supabase.from('cards').select('question, answer').eq('deck_id', deckId)
+
+    onStatus('AI is generating new cards... (30-60 seconds)')
+    const { data, error: fnError } = await supabase.functions.invoke('generate-cards', {
+        body: {
+            deckId,
+            pdfBase64: null,
+            subject,
+            userId,
+            cardCount: 30,
+            existingCards: cards
+        }
+    })
+
+    if (fnError) {
+        throw new Error(fnError.message)
+    }
+    if (data.error) throw new Error(data.error)
+
+    onStatus(`Done! Generated ${data.cardCount} new cards.`)
+    return { cardCount: data.cardCount }
+}
+
 // ─── CARDS ───────────────────────────────────────────────
 export async function getDeckCards(deckId: string) {
     const { data, error } = await supabase
@@ -308,7 +340,7 @@ export async function evaluateBadges() {
                 const state = card.card_states?.[0];
                 if (state) {
                     totalReps += (state.reps || 0);
-                    if (state.stability > 21) {
+                    if (state.stability > 3) {
                         masteredCount++;
                         const deck = decks.find(d => d.id === card.deck_id);
                         if (deck?.subject.toLowerCase().includes('math')) mathMastered = true;
@@ -353,7 +385,7 @@ export async function getDeckStats(deckId: string) {
         const state = card.card_states?.[0]
         if (!state) { newCards++; return }
 
-        if (state.state === 'review' && state.stability > 21) mastered++
+        if (state.state === 'review' && state.stability > 3) mastered++
         else if (state.state === 'learning' || state.state === 'relearning') learning++
         else if (new Date(state.due_date) <= now) due++
         else newCards++
@@ -400,7 +432,7 @@ export async function getAllStats() {
     const profile = profileRes.data
     const cards = cardsRes.data ?? []
     const totalCards = cardStates.length
-    const masteredCards = cardStates.filter(s => s.stability > 21).length
+    const masteredCards = cardStates.filter(s => s.stability > 3).length
     const memoryScore = totalCards > 0
         ? Math.round(cardStates.filter(s => s.stability > 7).length / totalCards * 100)
         : 0
@@ -428,4 +460,17 @@ export async function getAllStats() {
         studyLogs,
         deckStats
     }
+}
+
+export async function askMathLooker(query: string) {
+    const { data, error } = await supabase.functions.invoke('math-looker', {
+        body: { query }
+    })
+
+    if (error) {
+        throw new Error(error.message)
+    }
+    if (data.error) throw new Error(data.error)
+
+    return data.formula;
 }

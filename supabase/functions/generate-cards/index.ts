@@ -11,10 +11,16 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function generateCards(pdfBase64: string, subject: string, cardCount: number, retries = 3): Promise<any[]> {
+async function generateCards(pdfBase64: string | null, subject: string, cardCount: number, existingCards?: any[], retries = 3): Promise<any[]> {
+    const isNew = !pdfBase64;
+    const existingContext = existingCards?.length 
+        ? `Avoid these exact existing questions:\n${JSON.stringify(existingCards.slice(0, 10))}` 
+        : '';
+        
     const prompt = `You are an expert teacher creating flashcards for students aged 10-16.
 
-Analyze this PDF and generate flashcards. Return ONLY a valid JSON array, no markdown, no extra text.
+${pdfBase64 ? 'Analyze this PDF and generate flashcards.' : `Generate flashcards based on the subject: ${subject}. ${existingContext}`}
+Return ONLY a valid JSON array, no markdown, no extra text.
 
 Rules:
 - Cover key concepts, definitions, formulas, relationships, and worked examples
@@ -46,8 +52,10 @@ Subject: ${subject}`;
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     contents: [{
-                        parts: [
+                        parts: pdfBase64 ? [
                             { inline_data: { mime_type: "application/pdf", data: pdfBase64 } },
+                            { text: prompt }
+                        ] : [
                             { text: prompt }
                         ]
                     }],
@@ -61,21 +69,33 @@ Subject: ${subject}`;
         if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
             const text = data.candidates[0].content.parts[0].text;
             const clean = text.replace(/```json|```/g, "").trim();
-            const parsed = JSON.parse(clean);
-            // Trim or pad to exact count if AI over/under-generates
-            return parsed.slice(0, cardCount);
+            try {
+                const parsed = JSON.parse(clean);
+                if (Array.isArray(parsed)) {
+                    // Try to generate more if under 30
+                    if (parsed.length < cardCount && retries > 1) {
+                        const needed = cardCount - parsed.length;
+                        console.log(`Generated ${parsed.length}, need ${needed} more...`);
+                        const moreCards = await generateCards(pdfBase64, subject, needed, parsed, retries - 1);
+                        return [...parsed, ...moreCards].slice(0, cardCount);
+                    }
+                    return parsed.slice(0, cardCount);
+                }
+            } catch (e) {
+                console.error("Failed to parse JSON:", e);
+            }
         }
 
         if (data.error?.code === 503 && i < retries - 1) {
             console.log(`Gemini overloaded, retrying in ${(i + 1) * 2}s...`);
             await new Promise(r => setTimeout(r, (i + 1) * 2000));
-        } else {
+        } else if (i === retries - 1) {
             console.error("Gemini response:", JSON.stringify(data));
-            throw new Error("Gemini returned no content");
+            throw new Error("Gemini returned no content or invalid content after all retries");
         }
     }
 
-    throw new Error("Gemini failed after all retries");
+    return [];
 }
 
 async function correctCards(cards: any[], subject: string, retries = 3): Promise<any[]> {
@@ -153,16 +173,16 @@ serve(async (req) => {
     }
 
     try {
-        const { deckId, pdfBase64, subject, userId, cardCount = 15 } = await req.json();
+        const { deckId, pdfBase64, subject, userId, cardCount = 30, existingCards } = await req.json();
 
-        if (!deckId || !pdfBase64 || !userId) {
-            throw new Error("Missing required fields: deckId, pdfBase64, userId");
+        if (!deckId || !userId) {
+            throw new Error("Missing required fields: deckId, userId");
         }
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
         console.log(`Generating ${cardCount} cards...`);
-        const rawCards = await generateCards(pdfBase64, subject || "General", cardCount);
+        const rawCards = await generateCards(pdfBase64, subject || "General", cardCount, existingCards);
 
         console.log(`Generated ${rawCards.length} cards. Correcting...`);
         const correctedCards = await correctCards(rawCards, subject || "General");

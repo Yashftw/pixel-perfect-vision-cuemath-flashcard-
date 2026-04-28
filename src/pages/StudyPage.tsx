@@ -22,7 +22,7 @@ const RATINGS = [
 
 type Rating = typeof RATINGS[number];
 type TimerMode = "stopwatch" | "countdown" | "none";
-type Difficulty = "chill" | "standard" | "beast" | "custom";
+type Difficulty = "easy" | "medium" | "hard" | "custom";
 
 function getStorage<T>(key: string, fallback: T): T {
     const v = localStorage.getItem(key);
@@ -48,22 +48,22 @@ interface DiffPickerProps {
 }
 
 function DifficultyPicker({ totalCards, onStart }: DiffPickerProps) {
-    const [selected, setSelected] = useState<Difficulty>("chill");
-    const [customCount, setCustomCount] = useState(Math.min(10, totalCards));
+    const [selected, setSelected] = useState<Difficulty>("easy");
+    const [customCount, setCustomCount] = useState(Math.min(30, totalCards));
 
     // Cap counts to what's actually available
-    const chillCount = Math.min(10, totalCards);
-    const standardCount = Math.min(20, totalCards);
-    const beastCount = totalCards;
+    const easyCount = Math.min(5, totalCards);
+    const mediumCount = Math.min(15, totalCards);
+    const hardCount = Math.min(25, totalCards);
 
     const options: { id: Difficulty; icon: React.ReactNode; label: string; desc: string; count: number; color: string }[] = [
-        { id: "chill",    icon: <BookOpen className="w-5 h-5" />, label: "Chill",      desc: "Easy warm-up",        count: chillCount,    color: "bg-brand-green"  },
-        { id: "standard", icon: <Flame className="w-5 h-5" />,    label: "Standard",   desc: "Balanced session",    count: standardCount, color: "bg-brand-yellow" },
-        { id: "beast",    icon: <Zap className="w-5 h-5" />,      label: "Beast Mode", desc: "All cards, no mercy", count: beastCount,    color: "bg-brand-orange" },
-        { id: "custom",   icon: <Settings2 className="w-5 h-5" />,label: "Custom",     desc: "You pick the count",  count: customCount,   color: "bg-brand-purple" },
+        { id: "easy",   icon: <BookOpen className="w-5 h-5" />, label: "Easy",       desc: "Easy warm-up",        count: easyCount,     color: "bg-brand-green"  },
+        { id: "medium", icon: <Flame className="w-5 h-5" />,    label: "Medium",     desc: "Balanced session",    count: mediumCount,   color: "bg-brand-yellow" },
+        { id: "hard",   icon: <Zap className="w-5 h-5" />,      label: "Hard",       desc: "Tough session",       count: hardCount,     color: "bg-brand-orange" },
+        { id: "custom", icon: <Settings2 className="w-5 h-5" />,label: "Custom",     desc: "You pick the count",  count: customCount,   color: "bg-brand-purple" },
     ];
 
-    const finalCount = selected === "custom" ? customCount : (options.find(o => o.id === selected)?.count ?? standardCount);
+    const finalCount = selected === "custom" ? customCount : (options.find(o => o.id === selected)?.count ?? mediumCount);
 
     return (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -97,14 +97,14 @@ function DifficultyPicker({ totalCards, onStart }: DiffPickerProps) {
                         </label>
                         <input
                             type="range"
-                            min={1}
-                            max={totalCards}
+                            min={5}
+                            max={Math.min(30, totalCards)}
                             value={customCount}
                             onChange={(e) => setCustomCount(Number(e.target.value))}
                             className="w-full accent-brand-purple"
                         />
                         <div className="flex justify-between text-[10px] text-muted-foreground">
-                            <span>1</span><span>{totalCards}</span>
+                            <span>5</span><span>{Math.min(30, totalCards)}</span>
                         </div>
                     </div>
                 )}

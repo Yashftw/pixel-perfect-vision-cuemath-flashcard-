@@ -1,12 +1,12 @@
 import Layout from "@/components/Layout";
 import { PageHeader, SectionCard } from "@/components/Brutal";
-import { BookMarked, Layers, Wrench, Download, Search, Zap, BookOpen, Sigma, Info, Trash2, FileText, ChevronDown } from "lucide-react";
+import { BookMarked, Layers, Wrench, Download, Search, Zap, BookOpen, Sigma, Info, Trash2, FileText, ChevronDown, X } from "lucide-react";
 import { useState } from "react";
 import { useAppState } from "@/store/appState";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getDecks, deleteDeck, getDeckCards } from "@/lib/api";
+import { getDecks, deleteDeck, getDeckCards, generateMoreCards, askMathLooker } from "@/lib/api";
 import jsPDF from "jspdf";
 import { playClick } from "@/lib/sounds";
 
@@ -21,10 +21,15 @@ export default function Decks() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [fixIt, setFixIt] = useState(false);
-  const [formula, setFormula] = useState("E = mc^2");
+  const [formula, setFormula] = useState("");
+  const [mathQuery, setMathQuery] = useState("");
+  const [mathLoading, setMathLoading] = useState(false);
   const [pdfDeckId, setPdfDeckId] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showPdfPicker, setShowPdfPicker] = useState(false);
+
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [generatingMore, setGeneratingMore] = useState(false);
 
   const { data: decks = [], isLoading } = useQuery({ queryKey: ["decks"], queryFn: getDecks });
 
@@ -184,8 +189,53 @@ export default function Decks() {
 
   const openDeck = (id: string) => {
     playClick();
-    update(() => ({ currentDeckId: id, currentCardIndex: 0 }));
-    navigate(`/study/${id}`);
+    setSelectedDeckId(id);
+  };
+
+  const handleStudyPrevious = () => {
+    if (!selectedDeckId) return;
+    playClick();
+    update(() => ({ currentDeckId: selectedDeckId, currentCardIndex: 0 }));
+    navigate(`/study/${selectedDeckId}`);
+  };
+
+  const handleNewGeneration = async () => {
+    if (!selectedDeckId) return;
+    playClick();
+    const deck = decks.find((d: any) => d.id === selectedDeckId);
+    if (!deck) return;
+    setGeneratingMore(true);
+    try {
+      const toastId = toast.loading("Generating new cards...", { id: 'gen' });
+      await generateMoreCards(deck.id, deck.subject, (msg) => {
+        toast.loading(msg, { id: toastId });
+      });
+      toast.success("New cards ready!", { id: toastId });
+      queryClient.invalidateQueries({ queryKey: ["decks"] });
+      queryClient.invalidateQueries({ queryKey: ["all-cards", deck.id] });
+      update(() => ({ currentDeckId: deck.id, currentCardIndex: 0 }));
+      navigate(`/study/${deck.id}`);
+    } catch (err: any) {
+      toast.error("Failed: " + err.message, { id: 'gen' });
+    } finally {
+      setGeneratingMore(false);
+      setSelectedDeckId(null);
+    }
+  };
+
+  const askMath = async () => {
+    if (!mathQuery.trim()) return;
+    setMathLoading(true);
+    playClick();
+    try {
+      const res = await askMathLooker(mathQuery);
+      setFormula(res);
+      setMathQuery("");
+    } catch (err: any) {
+      toast.error("Math Looker failed: " + err.message);
+    } finally {
+      setMathLoading(false);
+    }
   };
 
   // tiny math renderer (handles ^ as superscript)
@@ -258,26 +308,27 @@ export default function Decks() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {isLoading ? (
-               <div className="col-span-full p-4 text-center text-muted-foreground">Loading your decks...</div>
+              <div className="col-span-full p-4 text-center text-muted-foreground">Loading your decks...</div>
             ) : filtered.length === 0 ? (
-               <div className="col-span-full p-4 text-center text-muted-foreground">No decks yet. Go to Home to upload a PDF!</div>
+              <div className="col-span-full p-4 text-center text-muted-foreground">No decks yet. Go to Home to upload a PDF!</div>
             ) : null}
             {filtered.map((d: any, i) => {
               const bgColors = ["green", "yellow", "blue", "orange", "purple"];
               const colorKey = bgColors[i % bgColors.length];
               return (
-              <button
-                key={d.id}
-                onClick={() => fixIt ? removeDeck(d.id) : openDeck(d.id)}
-                className={`brutal-sm brutal-press p-4 text-left ${colorMap[colorKey]} group relative`}
-              >
-                <div className="brutal-sm bg-card w-9 h-9 grid place-items-center mb-3">
-                  {fixIt ? <Trash2 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
-                </div>
-                <div className="font-display text-base leading-tight">{d.title}</div>
-                <div className="text-xs text-muted-foreground mt-1">{d.subject || "General Study"}</div>
-              </button>
-            )})}
+                <button
+                  key={d.id}
+                  onClick={() => fixIt ? removeDeck(d.id) : openDeck(d.id)}
+                  className={`brutal-sm brutal-press p-4 text-left ${colorMap[colorKey]} group relative`}
+                >
+                  <div className="brutal-sm bg-card w-9 h-9 grid place-items-center mb-3">
+                    {fixIt ? <Trash2 className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                  </div>
+                  <div className="font-display text-base leading-tight">{d.title}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{d.subject || "General Study"}</div>
+                </button>
+              )
+            })}
           </div>
         </SectionCard>
 
@@ -313,13 +364,42 @@ export default function Decks() {
 
             <div className="brutal-sm bg-muted p-4">
               <div className="text-xs font-bold text-muted-foreground mb-3 flex items-center gap-1.5"><Sigma className="w-3.5 h-3.5" /> Math Looker</div>
-              <input
-                value={formula} onChange={(e) => setFormula(e.target.value)}
-                className="brutal-sm bg-card px-3 py-2 w-full text-sm font-mono mb-2 outline-none"
-              />
-              <div className="brutal-sm bg-card px-3 py-4 text-center font-display text-xl">
-                {renderMath(formula)}
+
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={mathQuery} onChange={(e) => setMathQuery(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') askMath(); }}
+                  placeholder="e.g. pythagoras theorem, area of a circle..."
+                  className="brutal-sm bg-card px-3 py-2 flex-1 text-sm outline-none"
+                  disabled={mathLoading}
+                />
+                <button
+                  onClick={askMath}
+                  disabled={mathLoading || !mathQuery.trim()}
+                  className="brutal-sm bg-brand-orange px-3 font-bold text-xs disabled:opacity-50"
+                >
+                  {mathLoading ? "..." : "SEARCH"}
+                </button>
               </div>
+
+              {formula ? (
+                <div className="brutal-sm bg-card px-3 py-4 text-center font-display text-xl min-h-[60px] flex items-center justify-center animate-fade-in relative group">
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(formula); toast.success("Copied formula to clipboard!"); }}
+                      className="text-[10px] bg-muted px-2 py-1 brutal-sm hover:bg-brand-blue"
+                    >
+                      COPY LaTeX
+                    </button>
+                  </div>
+                  {renderMath(formula)}
+                </div>
+              ) : (
+                <div className="brutal-sm bg-card/50 px-3 py-6 text-center text-sm text-muted-foreground min-h-[60px] flex flex-col items-center justify-center border-dashed border-2 border-border">
+                  <Sigma className="w-6 h-6 mb-2 opacity-20" />
+                  Search for a math equation above
+                </div>
+              )}
             </div>
           </div>
 
@@ -329,11 +409,52 @@ export default function Decks() {
               <div className="font-bold mb-1">How to use Smart Settings</div>
               <p><b>Turbo:</b> Pick this when you want quick cards from short notes.</p>
               <p><b>Deep Dive:</b> Pick this for big chapters or tricky topics — it takes a little longer but catches more.</p>
-              <p><b>Math Looker:</b> Type any math formula and see how it will appear on your card before you save it.</p>
+              <p><b>Math Looker:</b> Ask for any formula and it will show you the exact math equation. You can copy the LaTeX to use in your cards.</p>
             </div>
           </div>
         </SectionCard>
       </div>
+
+      {selectedDeckId && !generatingMore && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="brutal bg-card w-full max-w-md p-6 space-y-5 animate-fade-in relative">
+            <button onClick={() => setSelectedDeckId(null)} className="absolute top-4 right-4 p-1 hover:bg-muted brutal-sm"><X className="w-4 h-4" /></button>
+            <div className="text-center mt-2">
+              <div className="font-display text-2xl mb-1">Study Time</div>
+              <p className="text-sm text-muted-foreground">What would you like to do?</p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleStudyPrevious}
+                className="w-full brutal-sm brutal-press bg-brand-blue p-4 text-left transition-all hover:-translate-y-1"
+              >
+                <div className="font-bold text-base flex items-center gap-2"><BookOpen className="w-5 h-5" /> Previous Questions</div>
+                <div className="text-xs text-muted-foreground mt-1 text-black/70">Study the cards you've already generated and build mastery.</div>
+              </button>
+
+              <button
+                onClick={handleNewGeneration}
+                className="w-full brutal-sm brutal-press bg-brand-orange p-4 text-left transition-all hover:-translate-y-1"
+              >
+                <div className="font-bold text-base flex items-center gap-2"><Zap className="w-5 h-5" /> New Generation</div>
+                <div className="text-xs text-muted-foreground mt-1 text-black/70">AI will generate a fresh batch of 30 new cards for this subject.</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {generatingMore && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="brutal bg-card p-8 text-center space-y-4 animate-pulse">
+            <Zap className="w-8 h-8 mx-auto text-brand-orange animate-bounce" />
+            <div className="font-display text-xl">Generating New Cards...</div>
+            <div className="text-sm text-muted-foreground">This takes about 30-60 seconds.</div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
